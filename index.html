@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Agenda Intelligent Pro</title>
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --primary-hover: #357ABD;
+            --danger: #FF5252;
+            --bg: #F5F7FA;
+            --text: #333;
+            --card: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            color: var(--text);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+
+        h2 { text-align: center; margin-bottom: 25px; font-weight: 600; }
+
+        /* Section Calendrier */
+        .calendar-section {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        input[type="date"], input[type="text"], select {
+            padding: 12px;
+            border: 2px solid #edf2f7;
+            border-radius: 10px;
+            outline: none;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus { border-color: var(--primary); }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-bottom: 2px solid #F5F7FA;
+            padding-bottom: 25px;
+            margin-bottom: 20px;
+        }
+
+        .row { display: flex; gap: 10px; }
+        #taskInput { flex: 1; width: 100%; box-sizing: border-box; }
+        
+        .btn-add {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-add:hover { background: var(--primary-hover); }
+
+        /* Liste des tâches */
+        ul { list-style: none; padding: 0; }
+
+        li {
+            background: #fff;
+            border: 1px solid #f0f0f0;
+            margin-bottom: 12px;
+            padding: 15px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            animation: fadeIn 0.3s ease-out;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+
+        .task-info { display: flex; flex-direction: column; flex-grow: 1; }
+        .task-text { font-size: 16px; margin-bottom: 4px; }
+        .task-date { font-size: 11px; color: #94a3b8; }
+        
+        .recurrence-badge { 
+            font-size: 10px; 
+            background: #e1f0ff; 
+            color: var(--primary); 
+            padding: 3px 8px; 
+            border-radius: 20px;
+            width: fit-content;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+
+        .completed { background: #f8fafc; opacity: 0.7; }
+        .completed .task-text { text-decoration: line-through; color: #94a3b8; }
+
+        .btn-delete {
+            background: #fee2e2;
+            color: var(--danger);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-delete:hover { background: var(--danger); color: white; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📅 Mon Agenda</h2>
+
+    <div class="calendar-section">
+        <label>Afficher le : </label>
+        <input type="date" id="viewDate">
+    </div>
+
+    <div class="input-group">
+        <input type="text" id="taskInput" placeholder="Quelle est la mission ?">
+        <div class="row">
+            <input type="date" id="taskDate">
+            <select id="recurrence">
+                <option value="none">Une fois</option>
+                <option value="daily">Quotidien</option>
+                <option value="weekly">Hebdo</option>
+            </select>
+        </div>
+        <button class="btn-add" id="addBtn">Ajouter à l'agenda</button>
+    </div>
+
+    <ul id="taskList"></ul>
+</div>
+
+<script>
+    const taskInput = document.getElementById('taskInput');
+    const taskDate = document.getElementById('taskDate');
+    const viewDate = document.getElementById('viewDate');
+    const recurrence = document.getElementById('recurrence');
+    const taskList = document.getElementById('taskList');
+    const addBtn = document.getElementById('addBtn');
+
+    // --- 1. INITIALISATION DES DATES ---
+    // On récupère la date locale au format YYYY-MM-DD
+    const today = new Date().toLocaleDateString('en-CA'); 
+    taskDate.value = today;
+    viewDate.value = today;
+
+    // --- 2. CHARGEMENT DES DONNÉES (LocalStorage) ---
+    let tasks = JSON.parse(localStorage.getItem('mySmartAgenda')) || [];
+
+    function saveTasks() {
+        localStorage.setItem('mySmartAgenda', JSON.stringify(tasks));
+    }
+
+    // --- 3. LOGIQUE DES TÂCHES ---
+    function addTask() {
+        const text = taskInput.value.trim();
+        if (text === '') {
+            taskInput.style.borderColor = 'var(--danger)';
+            return;
+        }
+        taskInput.style.borderColor = '#edf2f7';
+
+        const newTask = {
+            id: Date.now(),
+            text: text,
+            date: taskDate.value,
+            repeat: recurrence.value,
+            completedDates: [] // Stocke les dates où la tâche a été faite
+        };
+
+        tasks.push(newTask);
+        saveTasks();
+        taskInput.value = '';
+        renderTasks();
+    }
+
+    function deleteTask(id) {
+        tasks = tasks.filter(t => t.id !== id);
+        saveTasks();
+        renderTasks();
+    }
+
+    function toggleTask(id, date) {
+        tasks = tasks.map(t => {
+            if (t.id === id) {
+                // Si la date est déjà dans completedDates, on l'enlève, sinon on l'ajoute
+                const index = t.completedDates.indexOf(date);
+                if (index > -1) {
+                    t.completedDates.splice(index, 1);
+                } else {
+                    t.completedDates.push(date);
+                }
+            }
+            return t;
+        });
+        saveTasks();
+        renderTasks();
+    }
+
+    // --- 4. RENDU ---
+    function renderTasks() {
+        taskList.innerHTML = '';
+        const selectedDate = viewDate.value;
+
+        const filtered = tasks.filter(t => {
+            if (t.date === selectedDate) return true;
+            if (t.repeat === 'daily' && t.date <= selectedDate) return true;
+            if (t.repeat === 'weekly') {
+                const start = new Date(t.date);
+                const current = new Date(selectedDate);
+                return start <= current && start.getDay() === current.getDay();
+            }
+            return false;
+        });
+
+        filtered.forEach(t => {
+            const isCompleted = t.completedDates.includes(selectedDate);
+            const li = document.createElement('li');
+            if (isCompleted) li.classList.add('completed');
+
+            li.innerHTML = `
+                <div class="task-info">
+                    <span class="task-text" onclick="toggleTask(${t.id}, '${selectedDate}')" style="cursor:pointer">
+                        <strong>${t.text}</strong>
+                    </span>
+                    <span class="task-date">📅 Créé le : ${t.date}</span>
+                    ${t.repeat !== 'none' ? `<span class="recurrence-badge">🔁 ${t.repeat}</span>` : ''}
+                </div>
+                <button class="btn-delete" onclick="deleteTask(${t.id})">Supprimer</button>
+            `;
+            taskList.appendChild(li);
+        });
+    }
+
+    // --- 5. ÉVÉNEMENTS ---
+    addBtn.addEventListener('click', addTask);
+
+    // Ajouter avec la touche ENTRÉE
+    taskInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addTask();
+    });
+
+    // Rafraîchir quand on change la date de vue
+    viewDate.addEventListener('change', renderTasks);
+
+    // Premier rendu
+    renderTasks();
+</script>
+
+</body>
+</html>
